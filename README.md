@@ -47,5 +47,5 @@ _Pendiente (miércoles 21)._
 - La temporada 2020-21 se jugó sin público, lo que reduce la ventaja local.
 
 ## Equipo
-- Daniel Loayza: _rol_
+- Amyra Loayza: _rol_
 - _Compañero_: _rol_
