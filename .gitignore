@@ -1,7 +1,21 @@
+# datos: se regeneran con los scripts
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# modelos entrenados
+models/*.joblib
+
+# python
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
 .ipynb_checkpoints/
+
+# sistema
 .DS_Store
-data/raw/
-data/processed/
+Thumbs.db
+.vscode/
+.idea/

@@ -1,54 +1,44 @@
-# futbol-ml — Instrucciones para Claude
+# Contexto para Claude (y para el equipo)
 
-Proyecto de Machine Learning (2 personas, 12 días) que estima P(victoria local / empate / victoria visitante)
-en la Premier League usando **solo información previa al partido**, con demo en Streamlit.
-Prioridad: **calidad de las probabilidades y evaluación honesta**, no accuracy alto.
+Proyecto académico de 2 personas: predecir H/D/A (local/empate/visitante) en la Premier League
+con información disponible ANTES del partido. Entrega: sábado 24 de octubre de 2026.
+Foco: calidad de probabilidades y evaluación honesta, no accuracy alto.
 
-## Alcance (recortado)
-- Una sola liga: Premier League, ~8 temporadas de football-data.co.uk (resultados + cuotas en el mismo CSV).
-- Features: forma últimos 5 partidos, Elo previo al partido, días de descanso. H2H solo si sobra tiempo.
-- Modelos: baseline de frecuencias, regresión logística, Random Forest, XGBoost. Poisson simple opcional.
-- Fuera de alcance (trabajo futuro): xG/FBref, Liga Pro Ecuador, Dixon-Coles.
-- Demo mínima: dos selectores de equipo, las tres probabilidades y un gráfico SHAP.
-
-## Reglas innegociables
-1. **Sin fuga de datos.** Toda feature de un partido usa únicamente partidos anteriores (`shift(1)` / Elo previo al partido).
-   Test obligatorio: cambiar resultados futuros no debe alterar features pasadas.
-2. **Validación temporal.** Entrenar con el pasado, probar con el futuro. Nunca `train_test_split` aleatorio.
-   Hiperparámetros con `TimeSeriesSplit` y `RandomizedSearchCV` pequeño.
-3. **El conjunto de prueba se toca una sola vez** (mié 21), al final. Antes, solo validación.
-4. **Orden de clases fijo: H, D, A.** `sklearn.metrics.log_loss` asume orden alfabético (A, D, H), lo que calcularía
-   mal las métricas sin error. Usar siempre las funciones de `src/evaluation` y `to_hda()` para reordenar salidas de modelos.
-5. **Comparar siempre contra** el baseline de frecuencias y las probabilidades implícitas de las cuotas (sin margen de la casa).
-6. Si el accuracy sale muy por encima de ~55 %, sospechar fuga antes de celebrar.
+## Reglas que no se rompen
+1. **Sin fuga de datos.** Toda feature de un partido usa solo partidos de fechas anteriores
+   (`shift(1)` antes de cualquier `rolling`). `tests/test_leakage.py` debe pasar siempre.
+   Las cuotas (`odds_*`) son referencia de comparación, NO features del modelo.
+2. **Cortes temporales fijos** en `src/config.py` y aplicados con `src.splits.split()`.
+   Nada de `train_test_split` aleatorio. Ajuste de hiperparámetros solo con `TimeSeriesSplit`
+   dentro de train.
+3. **El conjunto de prueba (2024-25) se usa una sola vez**, el miércoles 21, con
+   `split(df, use_test=True)`. Antes de eso todo se compara en validación (2023-24).
+4. **Probabilidades siempre en orden H, D, A.** Con modelos de sklearn/xgboost usar
+   `to_hda(model, model.predict_proba(X))`. No usar `sklearn.metrics.log_loss` directo.
+5. **Toda métrica pasa por `src.evaluation.metrics.evaluate()`** para que la comparación sea justa.
 
 ## Estructura
+- `src/data/` ingesta y limpieza (Persona A)
+- `src/features/` forma, Elo, descanso (Persona A)
+- `src/models/` baseline, logística, RF, XGBoost, Poisson
+- `src/evaluation/` métricas, calibración (Persona B)
+- `notebooks/` exploración: `NN_tema_iniciales.ipynb`. La lógica reutilizable va a `src/`.
+- `app/` demo en Streamlit
+- `data/` no se versiona; se regenera con los scripts
+
+## Comandos
 ```
-data/raw/        CSV descargados (no se suben a git)
-data/processed/  tablas limpias y de features
-src/data/        download.py, clean.py
-src/features/    form.py, elo.py, rest.py, build.py
-src/models/      baseline.py, logistic.py, forest.py, xgb.py
-src/evaluation/  métricas, calibración, probabilidades de cuotas
-app/             Streamlit
-tests/           pytest (incluye test anti-fuga)
-docs/PLAN.md    plan día a día
+python -m src.data.download    # CSV crudos a data/raw/
+python -m src.data.clean       # data/processed/matches.csv
+python -m src.features.build   # data/processed/features.csv
+python -m pytest -q            # tests (correr antes de cada PR)
 ```
 
-## Flujo de trabajo (Git)
-- `main` protegida: solo se fusiona vía Pull Request con CI en verde y 1 revisión del compañero.
-- Ramas: `feat/<tarea>`, `fix/<tarea>`. Commits pequeños, en español o inglés, imperativos.
-- Un Issue por tarea del plan (ver `docs/PLAN.md`); el PR referencia `Closes #N`.
-- Los PR que tocan `src/features/` requieren revisión anti-fuga explícita.
+## Flujo de trabajo
+- Nunca push directo a `main`. Rama `feat/<tema>` → PR → revisión del compañero → merge.
+- Un PR = una tarea de `docs/PLAN.md`. PRs pequeños.
+- Al revisar, Claude debe buscar primero fuga de datos y errores de orden de columnas.
 
-## Convenciones de código
-- Python 3.11+, pandas, scikit-learn, xgboost, shap, streamlit.
-- Tipado en funciones públicas, docstrings cortos. Aleatoriedad con `random_state=42`.
-- Notebooks solo para exploración; la lógica vive en `src/` y se prueba en `tests/`.
-- Comandos: `pip install -r requirements.txt`, `pytest -q`, `python -m src.data.download`.
-
-## Cómo ayudar (Claude)
-- Antes de proponer una feature, verificar que no usa información posterior al partido.
-- Revisar PRs buscando fuga de datos, orden de clases y uso indebido del conjunto de prueba.
-- Reportar resultados tal cual, incluso si no mejoran al baseline.
-- Herramienta educativa y analítica; no es consejo para apostar.
+## Resultados esperables
+Accuracy ~50–55 %, log loss por debajo del baseline (~1.07) y algo por encima de las cuotas
+(~0.97–1.00). Un accuracy > 60 % casi seguro indica fuga de datos.
