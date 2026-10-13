@@ -6,7 +6,7 @@ Salida: data/processed/features.csv (una fila por partido)
 import pandas as pd
 
 from src.config import (DATA_PROCESSED, ELO_HOME_ADV, ELO_INIT, ELO_K,
-                        FORM_WINDOW)
+                        FORM_WINDOW, ELO_PROMOTED_INIT)
 
 FEATURE_COLS = [
     "home_form_pts", "home_form_gf", "home_form_ga",
@@ -52,13 +52,16 @@ def add_form_and_rest(df: pd.DataFrame, window: int = FORM_WINDOW) -> pd.DataFra
 
 
 def add_elo(df: pd.DataFrame, k: float = ELO_K, home_adv: float = ELO_HOME_ADV,
-            init: float = ELO_INIT) -> pd.DataFrame:
-    """Elo previo al partido: se guarda el rating ANTES de actualizarlo."""
+            init: float = ELO_INIT, promoted_init: float = ELO_PROMOTED_INIT) -> pd.DataFrame:
+    """Elo previo al partido: se guarda el rating ANTES de actualizarlo.
+    Los equipos que aparecen después de la primera temporada (ascendidos) empiezan en promoted_init."""
     ratings: dict[str, float] = {}
+    first_season = df["season"].min()
     home_pre, away_pre = [], []
     for row in df.sort_values(["date", "match_id"]).itertuples():
-        rh = ratings.get(row.home, init)
-        ra = ratings.get(row.away, init)
+        start = init if row.season == first_season else promoted_init
+        rh = ratings.get(row.home, start)
+        ra = ratings.get(row.away, start)
         home_pre.append((row.match_id, rh))
         away_pre.append((row.match_id, ra))
         expected_h = 1 / (1 + 10 ** ((ra - (rh + home_adv)) / 400))
