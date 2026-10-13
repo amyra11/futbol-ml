@@ -22,7 +22,8 @@ CLASSES = ["H", "D", "A"]
 # Parámetros de features
 FORM_WINDOW = 5
 ELO_INIT = 1500.0
-ELO_K = 20.0
+ELO_K = 30.0
 ELO_HOME_ADV = 60.0
+ELO_PROMOTED_INIT = 1450.0 
 
 RANDOM_STATE = 42
