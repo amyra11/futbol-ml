@@ -40,5 +40,9 @@ python -m pytest -q            # tests (correr antes de cada PR)
 - Al revisar, Claude debe buscar primero fuga de datos y errores de orden de columnas.
 
 ## Resultados esperables
-Accuracy ~50–55 %, log loss por debajo del baseline (~1.07) y algo por encima de las cuotas
-(~0.97–1.00). Un accuracy > 60 % casi seguro indica fuga de datos.
+Referencias en validación (2023-24, 380 partidos con cuotas): baseline de frecuencias ≈ 1.05,
+regresión logística ≈ 0.93 y cuotas del mercado ≈ 0.91 de log loss (accuracy ~50–59 %).
+Un modelo razonable queda entre el baseline y las cuotas. Un log loss por debajo de las cuotas
+o un accuracy > 60 % casi seguro indica fuga de datos.
+Los valores fuera de muestra en entrenamiento (`TimeSeriesSplit`) son algo peores, porque
+2023-24 fue una temporada más predecible.
