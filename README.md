@@ -27,6 +27,7 @@ pip install -r requirements.txt
 python -m src.data.download
 python -m src.data.clean
 python -m src.features.build
+python -m src.models.final        # entrena y guarda el modelo final (models/modelo_final.joblib)
 python -m pytest -q
 ```
 

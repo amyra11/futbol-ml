@@ -23,10 +23,12 @@ def load_features() -> pd.DataFrame:
 
 
 @st.cache_resource
-def load_model() -> EloLogistic:
-    """Modelo de probabilidades H/D/A. Contrato: predict_proba(X) con las FEATURE_COLS de un
-    partido, devolviendo (n, 3) en orden H, D, A. Aquí se cambia por el modelo final."""
-    return EloLogistic().fit(load_features())
+def load_model():
+    """Modelo final de probabilidades H/D/A (src/models/final.py). Contrato: predict_proba(X) con
+    las FEATURE_COLS de uno o varios partidos, devolviendo (n, 3) en orden H, D, A.
+    Si models/modelo_final.joblib no existe, se entrena y se guarda la primera vez."""
+    from src.models.final import cargar_modelo
+    return cargar_modelo()
 
 
 @st.cache_resource
@@ -65,7 +67,8 @@ c1, c2, c3 = st.columns(3)
 for col, etiqueta, p in zip((c1, c2, c3), etiquetas, probs):
     col.metric(etiqueta, f"{p:.0%}")
 st.bar_chart(pd.DataFrame({"Probabilidad": probs}, index=etiquetas))
-st.info("Modelo provisional basado solo en el Elo. Se reemplazará por el modelo final.")
+st.info("Modelo final: regresión logística con la diferencia de Elo, la forma de los últimos 5 "
+        "partidos y los días de descanso, entrenada con las temporadas 2017-18 a 2023-24.")
 
 st.subheader("Goles esperados (modelo Poisson)")
 lam_l, lam_v = (a[0] for a in load_poisson().expected_goals(X))
