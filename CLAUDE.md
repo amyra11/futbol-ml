@@ -31,6 +31,7 @@ Foco: calidad de probabilidades y evaluación honesta, no accuracy alto.
 python -m src.data.download    # CSV crudos a data/raw/
 python -m src.data.clean       # data/processed/matches.csv
 python -m src.features.build   # data/processed/features.csv
+python -m src.models.final     # models/modelo_final.joblib (modelo final de la app)
 python -m pytest -q            # tests (correr antes de cada PR)
 ```
 
