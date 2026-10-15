@@ -11,6 +11,11 @@ from src.config import DATA_PROCESSED
 from src.models.elo_logistic import EloLogistic
 from src.features.current import recent_form
 
+import numpy as np
+
+from src.models.poisson import PoissonElo, score_matrix
+from src.splits import split
+
 st.set_page_config(page_title="Predicción de fútbol", page_icon="⚽")
 
 
@@ -50,6 +55,10 @@ col2.metric("Elo visitante", f"{elo_a:.0f}")
 
 probs = load_model().predict_proba_teams(elo_h, elo_a)
 etiquetas = [f"1 · Gana {home}", "2 · Empate", f"3 · Gana {away}"]
+@st.cache_resource
+def load_poisson() -> PoissonElo:
+    train, val = split(load_features())          # nunca usa la temporada de prueba
+    return PoissonElo().fit(pd.concat([train, val]))
 
 st.subheader("Probabilidades")
 c1, c2, c3 = st.columns(3)
@@ -57,6 +66,22 @@ for col, etiqueta, p in zip((c1, c2, c3), etiquetas, probs):
     col.metric(etiqueta, f"{p:.0%}")
 st.bar_chart(pd.DataFrame({"Probabilidad": probs}, index=etiquetas))
 st.info("Modelo provisional basado solo en el Elo. Se reemplazará por el modelo final.")
+
+st.subheader("Goles esperados (modelo Poisson)")
+lam_l, lam_v = load_poisson().predict_teams(elo_h, elo_a)
+g1, g2 = st.columns(2)
+g1.metric(f"Goles esperados · {home}", f"{lam_l:.2f}")
+g2.metric(f"Goles esperados · {away}", f"{lam_v:.2f}")
+
+M = score_matrix(lam_l, lam_v, max_goles=5)
+i, j = np.unravel_index(M.argmax(), M.shape)
+st.write(f"Marcador más probable: **{home} {i} – {j} {away}** ({M[i, j]:.0%})")
+matriz = pd.DataFrame(M * 100, index=range(6), columns=range(6))
+matriz.index.name, matriz.columns.name = f"Goles {home}", f"Goles {away}"
+st.dataframe(matriz.style.format("{:.1f}%").background_gradient(cmap="Blues"))
+st.caption(f"Filas: goles de {home}. Columnas: goles de {away}. Se muestran hasta 5 goles por equipo. "
+           "Cada celda es la probabilidad de ese marcador exacto; aun el más probable ronda el 10–15 %, "
+           "porque el fútbol tiene mucho azar.")
 
 st.subheader("Factores clave")
 fh, fa = recent_form(f, home), recent_form(f, away)
