@@ -51,10 +51,9 @@ def add_form_and_rest(df: pd.DataFrame, window: int = FORM_WINDOW) -> pd.DataFra
     return out
 
 
-def add_elo(df: pd.DataFrame, k: float = ELO_K, home_adv: float = ELO_HOME_ADV,
-            init: float = ELO_INIT, promoted_init: float = ELO_PROMOTED_INIT) -> pd.DataFrame:
-    """Elo previo al partido: se guarda el rating ANTES de actualizarlo.
-    Los equipos que aparecen después de la primera temporada (ascendidos) empiezan en promoted_init."""
+def _run_elo(df: pd.DataFrame, k: float, home_adv: float, init: float, promoted_init: float):
+    """Recorre los partidos en orden cronológico. Devuelve el Elo previo a cada partido
+    (local y visitante) y los ratings finales de cada equipo."""
     ratings: dict[str, float] = {}
     first_season = df["season"].min()
     home_pre, away_pre = [], []
@@ -69,11 +68,26 @@ def add_elo(df: pd.DataFrame, k: float = ELO_K, home_adv: float = ELO_HOME_ADV,
         delta = k * (score_h - expected_h)
         ratings[row.home] = rh + delta
         ratings[row.away] = ra - delta
+    return home_pre, away_pre, ratings
+
+
+def add_elo(df: pd.DataFrame, k: float = ELO_K, home_adv: float = ELO_HOME_ADV,
+            init: float = ELO_INIT, promoted_init: float = ELO_PROMOTED_INIT) -> pd.DataFrame:
+    """Elo previo al partido: se guarda el rating ANTES de actualizarlo.
+    Los equipos que aparecen después de la primera temporada (ascendidos) empiezan en promoted_init."""
+    home_pre, away_pre, _ = _run_elo(df, k, home_adv, init, promoted_init)
     out = df.copy()
     out["home_elo"] = out["match_id"].map(dict(home_pre))
     out["away_elo"] = out["match_id"].map(dict(away_pre))
     out["elo_diff"] = out["home_elo"] + home_adv - out["away_elo"]
     return out
+
+
+def final_elo(df: pd.DataFrame, k: float = ELO_K, home_adv: float = ELO_HOME_ADV,
+              init: float = ELO_INIT, promoted_init: float = ELO_PROMOTED_INIT) -> dict[str, float]:
+    """Elo de cada equipo DESPUÉS de todos los partidos de `df` (estado actual, para predecir
+    un partido futuro)."""
+    return _run_elo(df, k, home_adv, init, promoted_init)[2]
 
 
 def build_features(matches: pd.DataFrame) -> pd.DataFrame:
