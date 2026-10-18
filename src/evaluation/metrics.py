@@ -11,11 +11,16 @@ def _onehot(y) -> np.ndarray:
     return np.stack([(y == c).astype(float) for c in CLASSES], axis=1)
 
 
+def log_loss_por_partido(y, probs, eps: float = 1e-15) -> np.ndarray:
+    """-log(probabilidad asignada al resultado real), una por partido (columnas H, D, A)."""
+    p = np.clip(np.asarray(probs, dtype=float), eps, 1)
+    return -np.log(np.sum(p * _onehot(y), axis=1))
+
+
 def log_loss_hda(y, probs, eps: float = 1e-15) -> float:
     """Log loss con columnas en orden H, D, A.
     (sklearn.log_loss asume orden alfabético A, D, H: no usarlo directamente.)"""
-    p = np.clip(np.asarray(probs, dtype=float), eps, 1)
-    return float(-np.mean(np.log(np.sum(p * _onehot(y), axis=1))))
+    return float(np.mean(log_loss_por_partido(y, probs, eps)))
 
 
 def to_hda(model, probs) -> np.ndarray:
