@@ -15,6 +15,11 @@ class EloLogistic:
         d = pd.concat([train, val])
         self.clf_ = LogisticRegression(random_state=RANDOM_STATE).fit(d[["elo_diff"]] / 100, d["result"])
         return self
+	
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        """Contrato común con el modelo final: X trae las FEATURE_COLS (aquí solo usa elo_diff);
+        devuelve una matriz (n, 3) con las columnas en orden H, D, A."""
+        return to_hda(self.clf_, self.clf_.predict_proba(X[["elo_diff"]] / 100))
 
     def predict_proba_teams(self, elo_home: float, elo_away: float) -> np.ndarray:
         """Devuelve [P(local), P(empate), P(visitante)] en orden H, D, A."""
