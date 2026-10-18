@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 NOMBRES_MODELOS = {
@@ -16,6 +17,9 @@ NOMBRES_MODELOS = {
 }
 
 _FINAL, _OTRO, _TEXTO, _SUAVE = "#2a78d6", "#b9b8b2", "#0b0b0b", "#52514e"
+_SEGUNDO = "#eb6834"      # segunda serie (cuotas) en gráficos con dos modelos
+
+NOMBRES_CLASES = {"H": "Gana el local (H)", "D": "Empate (D)", "A": "Gana el visitante (A)"}
 
 
 def fig_comparacion_modelos(tabla: pd.DataFrame, ruta, final: str = "logistica_sin_redundancia",
@@ -63,6 +67,56 @@ def fig_comparacion_modelos(tabla: pd.DataFrame, ruta, final: str = "logistica_s
     ax.grid(axis="x", color="#e6e5e0", lw=1)
     ax.set_axisbelow(True)
     fig.tight_layout(rect=(0, 0.04, 1, 1))
+    ruta = Path(ruta)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(ruta, facecolor="white")
+    return fig
+
+
+def fig_calibracion(y, probs: dict, ruta, n_bins: int = 10):
+    """Curvas de calibración en 3 paneles (H, D, A). `probs` = {etiqueta: matriz H, D, A} con
+    dos modelos como máximo: el primero en azul (modelo final), el segundo en naranja (cuotas).
+    Cada punto es un bin por cuantiles; su área es proporcional a n."""
+    from src.evaluation.calibracion import datos_calibracion, ece
+
+    plt.rcParams.update({"font.size": 18, "font.family": "DejaVu Sans"})
+    fig, axes = plt.subplots(1, 3, figsize=(19, 8.6), dpi=150)
+    colores = [_FINAL, _SEGUNDO]
+    for ax, clase in zip(axes, ["H", "D", "A"]):
+        datos = {nombre: datos_calibracion(y, p, clase, n_bins) for nombre, p in probs.items()}
+        tope = max(max(d["prob_media"].max(), d["frec_observada"].max()) for d in datos.values())
+        lim = min(1.0, np.ceil((tope + 0.05) * 10) / 10)
+        ax.plot([0, lim], [0, lim], color=_SUAVE, ls="--", lw=2, zorder=1)
+        for (nombre, d), color in zip(datos.items(), colores):
+            ax.plot(d["prob_media"], d["frec_observada"], color=color, lw=2, zorder=2)
+            ax.scatter(d["prob_media"], d["frec_observada"], s=d["n"] * 4, color=color,
+                       edgecolor="white", linewidth=2, zorder=3)
+        ax.set_xlim(0, lim)
+        ax.set_ylim(0, lim)
+        ax.set_aspect("equal")
+        ax.set_title(NOMBRES_CLASES[clase], fontsize=20, pad=12)
+        ax.set_xlabel("Probabilidad predicha")
+        ax.grid(color="#e6e5e0", lw=1)
+        ax.set_axisbelow(True)
+        for lado in ("top", "right"):
+            ax.spines[lado].set_visible(False)
+    axes[0].set_ylabel("Frecuencia real")
+
+    manejadores = [plt.Line2D([], [], color=c, lw=2, marker="o", markersize=12,
+                              markeredgecolor="white", markeredgewidth=2,
+                              label=f"{nombre}  (ECE {ece(y, p, n_bins):.3f})")
+                   for (nombre, p), c in zip(probs.items(), colores)]
+    manejadores.append(plt.Line2D([], [], color=_SUAVE, ls="--", lw=2, label="Calibración perfecta"))
+    fig.legend(handles=manejadores, loc="lower center", ncol=3, frameon=False, fontsize=16,
+               bbox_to_anchor=(0.5, 0.01))
+    fig.suptitle("¿Las probabilidades dicen la verdad?", x=0.01, ha="left", fontsize=24,
+                 fontweight="bold")
+    n_partidos = len(np.asarray(y))
+    fig.text(0.01, 0.885, f"Validación 2023-24 · {n_partidos} partidos · cada punto agrupa "
+             f"~{n_partidos // n_bins} partidos · sobre la diagonal = lo predicho ocurre",
+             color=_SUAVE, fontsize=15)
+    # Márgenes a mano: con ejes de aspecto igual, tight_layout deja la leyenda encima del eje X
+    fig.subplots_adjust(left=0.05, right=0.99, top=0.80, bottom=0.2, wspace=0.2)
     ruta = Path(ruta)
     ruta.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(ruta, facecolor="white")
