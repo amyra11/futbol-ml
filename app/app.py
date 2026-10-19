@@ -47,8 +47,10 @@ st.caption("Herramienta educativa y analítica. No es un consejo para apostar.")
 col1, col2 = st.columns(2)
 home = col1.selectbox("Equipo local", teams, index=0)
 away = col2.selectbox("Equipo visitante", teams, index=1)
-rest_h = col1.slider("Días de descanso del local", 2, 14, 7)
-rest_a = col2.slider("Días de descanso del visitante", 2, 14, 7)
+rest_h = col1.slider("Días de descanso del local", 3, 14, 7,
+                     help="14 significa dos semanas o más (inicio de temporada o parón). La mediana histórica es 7.")
+rest_a = col2.slider("Días de descanso del visitante", 3, 14, 7,
+                     help="14 significa dos semanas o más (inicio de temporada o parón). La mediana histórica es 7.")
 
 if home == away:
     st.warning("Elige dos equipos distintos.")
