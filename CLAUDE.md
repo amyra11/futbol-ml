@@ -40,6 +40,16 @@ python -m pytest -q            # tests (correr antes de cada PR)
 - Un PR = una tarea de `docs/PLAN.md`. PRs pequeños.
 - Al revisar, Claude debe buscar primero fuga de datos y errores de orden de columnas.
 
+## Decisiones
+Registro de decisiones tomadas. Fecha: 2026-10-18, antes de usar el conjunto de prueba.
+- **Modelo final: `logistica_sin_redundancia`** (`FEATURES_FINAL` de `src/models/final.py`).
+  Motivo: menor log loss en validación (0.926) y hace que la forma y el descanso influyan en la app.
+  Decidido por Amyra y Sebastián.
+- **`logistica_elo` (solo Elo) queda como modelo de comparación:** en validación no es
+  significativamente distinto (bootstrap) y en validación cruzada salió algo mejor; se reportará
+  junto al modelo final en el test del miércoles 21.
+- **Tras ver el test NO se cambia el modelo final.**
+
 ## Resultados esperables
 Referencias en validación (2023-24, 380 partidos con cuotas): baseline de frecuencias ≈ 1.05,
 regresión logística ≈ 0.93 y cuotas del mercado ≈ 0.91 de log loss (accuracy ~50–59 %).
