@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))   # para importar src/
 
+import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -101,3 +102,23 @@ tabla = pd.DataFrame(
 st.table(tabla)
 st.caption("Datos hasta el final de la temporada 2024-25. El Elo es el actual (tras el último partido). "
            "V = victoria, E = empate, D = derrota.")
+
+st.markdown("#### ¿Por qué predice esto el modelo?")
+mas_probable = [f"gana {home}", "empate", f"gana {away}"][int(probs.argmax())]
+st.write(f"Cada barra muestra cuánto empuja ese dato hacia el resultado más probable "
+         f"(**{mas_probable}**, {probs.max():.0%}): **verde** lo hace más probable y **rojo** menos "
+         "probable. Son las 4 variables que más pesan en este partido.")
+factores = pd.DataFrame(load_model().factores(X, top=4))
+factores["dato"] = factores["variable"] + " = " + factores["valor"].map(
+    lambda v: f"{v:.0f}" if abs(v) >= 20 or float(v).is_integer() else f"{v:.1f}")
+factores["sentido"] = np.where(factores["impacto"] >= 0, "A favor", "En contra")
+grafico_factores = alt.Chart(factores).mark_bar().encode(
+    x=alt.X("impacto:Q", title="Empuje hacia el resultado más probable (valor SHAP)"),
+    y=alt.Y("dato:N", sort=None, title=None, axis=alt.Axis(labelLimit=420)),
+    color=alt.Color("sentido:N", legend=None,
+                    scale=alt.Scale(domain=["A favor", "En contra"], range=["#00703f", "#e8664f"])),
+    tooltip=[alt.Tooltip("variable:N", title="Variable"), alt.Tooltip("valor:Q", title="Valor", format=".2f"),
+             alt.Tooltip("impacto:Q", title="Empuje", format="+.2f"), alt.Tooltip("sentido:N", title="Sentido")],
+)
+st.altair_chart(grafico_factores, width="stretch")
+st.caption("Valores SHAP del modelo lineal: coeficiente × dato estandarizado. Explican al modelo, no causas del juego.")
