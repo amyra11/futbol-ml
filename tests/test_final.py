@@ -5,7 +5,7 @@ import pytest
 from src.data.clean import clean_season, finalize
 from src.features.build import FEATURE_COLS, build_features
 from src.features.current import matchup_features
-from src.models.final import FEATURES_FINAL, ModeloFinal, cargar_modelo
+from src.models.final import FEATURES_FINAL, GRUPOS_FACTORES, ModeloFinal, cargar_modelo
 from src.models.logistic import NOMBRES_ES
 from tests.conftest import make_raw_season
 
@@ -84,3 +84,47 @@ def test_cargar_modelo_entrena_si_no_existe_y_luego_carga(features, tmp_path):
     X = matchup_features(features, "Arsenal", "Chelsea")
     assert np.allclose(m1.predict_proba(X), m2.predict_proba(X))
     assert m2.meta == m1.meta
+
+
+def test_grupos_cubren_cada_variable_exactamente_una_vez():
+    todas = [c for cols in GRUPOS_FACTORES.values() for c in cols]
+    assert len(todas) == len(set(todas))             # ninguna variable en dos grupos
+    assert sorted(todas) == sorted(FEATURES_FINAL)   # y ninguna sin grupo
+    assert len(GRUPOS_FACTORES) == 3
+
+
+def test_factores_agrupados_suman_lo_mismo_que_los_individuales(features, modelo):
+    """Los SHAP de un modelo lineal son aditivos: agrupar no cambia el total."""
+    for rest_h, rest_a in [(7, 7), (3, 12)]:
+        X = matchup_features(features, "Arsenal", "Chelsea", rest_home=rest_h, rest_away=rest_a)
+        individuales = modelo.factores(X, top=len(FEATURES_FINAL))
+        grupos = modelo.factores_agrupados(X)
+        assert sum(g["impacto"] for g in grupos) == pytest.approx(
+            sum(f["impacto"] for f in individuales))
+        # y cada grupo es la suma de sus variables
+        por_nombre = {f["variable"]: f["impacto"] for f in individuales}
+        for g in grupos:
+            assert g["impacto"] == pytest.approx(sum(por_nombre[NOMBRES_ES[c]] for c in g["variables"]))
+
+
+def test_factores_agrupados_formato_y_orden(features, modelo):
+    X = matchup_features(features, "Arsenal", "Chelsea", rest_home=7, rest_away=4)
+    grupos = modelo.factores_agrupados(X)
+    assert len(grupos) == 3
+    assert {g["grupo"] for g in grupos} == set(GRUPOS_FACTORES)
+    assert all(set(g) == {"grupo", "detalle", "impacto", "variables"} for g in grupos)
+    impactos = [abs(g["impacto"]) for g in grupos]
+    assert impactos == sorted(impactos, reverse=True)
+    detalle = {g["grupo"]: g["detalle"] for g in grupos}
+    assert detalle["Descanso"] == "Local 7 días · Visitante 4 días"
+    assert "pts/partido" in detalle["Forma reciente (últimos 5 partidos)"]
+    assert detalle["Fuerza de los equipos (Elo)"].startswith("Local ")
+
+
+def test_factores_agrupados_sin_columnas_de_elo_ni_datos(features, modelo):
+    """Sin home_elo/away_elo (solo FEATURES_FINAL) y con NaN no falla."""
+    X = matchup_features(features, "Arsenal", "Chelsea")[FEATURES_FINAL].copy()
+    X.loc[0, "home_form_pts"] = np.nan
+    detalle = {g["grupo"]: g["detalle"] for g in modelo.factores_agrupados(X)}
+    assert detalle["Fuerza de los equipos (Elo)"].startswith("Diferencia ")
+    assert "sin dato pts/partido" in detalle["Forma reciente (últimos 5 partidos)"]

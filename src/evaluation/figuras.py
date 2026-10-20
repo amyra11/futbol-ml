@@ -227,3 +227,51 @@ def fig_shap_ejemplo(shap_fila: pd.Series, valores: pd.Series, probs, titulo: st
     ruta.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(ruta, facecolor="white")
     return fig
+
+
+def fig_shap_ejemplo_agrupado(grupos: list[dict], probs, titulo: str, resultado_real: str, ruta):
+    """Explicación de un partido para el público: SHAP sumado por grupo (Elo, forma, descanso)
+    hacia la clase predicha. `grupos` = salida de `ModeloFinal.factores_agrupados()`;
+    `probs` en orden H, D, A. Debajo del nombre de cada grupo van sus datos del partido."""
+    from matplotlib.transforms import blended_transform_factory
+
+    from src.config import CLASSES
+
+    probs = np.asarray(probs, dtype=float)
+    clase = CLASSES[int(probs.argmax())]
+    grupos = sorted(grupos, key=lambda g: abs(g["impacto"]))      # la mayor arriba
+    contrib = np.array([g["impacto"] for g in grupos])
+
+    plt.rcParams.update({"font.size": 18, "font.family": "DejaVu Sans"})
+    fig, ax = plt.subplots(figsize=(15, 8.5), dpi=150)
+    colores = [_A_FAVOR if v >= 0 else _EN_CONTRA for v in contrib]
+    ax.barh(range(len(contrib)), contrib, height=0.62, color=colores)
+    ax.axvline(0, color=_SUAVE, lw=1.5)
+    ax.set_yticks(range(len(contrib)), [""] * len(contrib))
+    # Nombre del grupo en negrita y, debajo, sus datos (una línea por equipo)
+    trans = blended_transform_factory(ax.transAxes, ax.transData)
+    for i, g in enumerate(grupos):
+        ax.text(-0.02, i + 0.12, g["grupo"], transform=trans, ha="right", va="bottom",
+                color=_TEXTO, fontsize=18, fontweight="bold")
+        ax.text(-0.02, i + 0.06, g["detalle"].replace(" · ", "\n"), transform=trans,
+                ha="right", va="top", color=_SUAVE, fontsize=14, linespacing=1.3)
+    lim = np.abs(contrib).max()
+    for i, v in enumerate(contrib):
+        ax.text(v + (1 if v >= 0 else -1) * lim * 0.015, i, f"{v:+.2f}".replace("-", "−"),
+                va="center", ha="left" if v >= 0 else "right", color=_TEXTO, fontsize=16)
+    ax.set_xlim(min(contrib.min(), 0) - lim * 0.18, max(contrib.max(), 0) + lim * 0.15)
+    ax.set_ylim(-0.6, len(contrib) - 0.4)
+    ax.set_xlabel(f"Empuje hacia «{NOMBRES_CLASES[clase]}» (suma de SHAP, escala logit)")
+
+    pH, pD, pA = probs
+    fig.suptitle(titulo, x=0.01, y=0.975, ha="left", fontsize=24, fontweight="bold")
+    fig.text(0.01, 0.885, f"Modelo: local {pH:.0%} · empate {pD:.0%} · visitante {pA:.0%}   │   "
+             f"Resultado real: {resultado_real}", color=_TEXTO, fontsize=18)
+    fig.text(0.01, 0.835, "Verde = hace más probable el resultado predicho · Rojo = lo hace "
+             "menos probable · cada barra suma las variables de su grupo", color=_SUAVE, fontsize=15)
+    _estilo_barras_horizontales(ax)
+    fig.subplots_adjust(left=0.43, right=0.97, top=0.8, bottom=0.12)
+    ruta = Path(ruta)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(ruta, facecolor="white")
+    return fig
