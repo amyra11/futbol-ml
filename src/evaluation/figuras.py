@@ -121,3 +121,157 @@ def fig_calibracion(y, probs: dict, ruta, n_bins: int = 10):
     ruta.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(ruta, facecolor="white")
     return fig
+
+
+# Contribuciones SHAP: verde = a favor, rojo = en contra (mismos colores que la app).
+# Par validado para daltonismo; además cada barra lleva su valor con signo.
+_A_FAVOR, _EN_CONTRA = "#00703f", "#e8664f"
+
+
+def _nombre_variable(col: str) -> str:
+    from src.models.logistic import NOMBRES_ES
+    return NOMBRES_ES.get(col, col)
+
+
+def _formato_valor(v: float) -> str:
+    if abs(v) >= 20 or float(v).is_integer():
+        return f"{v:.0f}"
+    return f"{v:.1f}"
+
+
+def _estilo_barras_horizontales(ax):
+    for lado in ("top", "right", "left"):
+        ax.spines[lado].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    ax.grid(axis="x", color="#e6e5e0", lw=1)
+    ax.set_axisbelow(True)
+
+
+def fig_shap_global(importancia: pd.Series, ruta, n_partidos: int, referencia: str = "elo_diff"):
+    """Barras horizontales de la media de |SHAP| por variable (la mayor arriba). La variable
+    `referencia` (Elo) va resaltada; las demás llevan su peso relativo a ella."""
+    imp = importancia.sort_values()                      # barh dibuja de abajo hacia arriba
+    ref = importancia[referencia]
+
+    plt.rcParams.update({"font.size": 18, "font.family": "DejaVu Sans"})
+    fig, ax = plt.subplots(figsize=(15, 8.5), dpi=150)
+    colores = [_FINAL if c == referencia else _OTRO for c in imp.index]
+    ax.barh(range(len(imp)), imp.to_numpy(), height=0.62, color=colores)
+    ax.set_yticks(range(len(imp)), [_nombre_variable(c) for c in imp.index])
+    for lbl, c in zip(ax.get_yticklabels(), imp.index):
+        lbl.set_fontweight("bold" if c == referencia else "normal")
+    for i, (c, v) in enumerate(imp.items()):
+        texto = f"{v:.2f}" if c == referencia else f"{v:.2f}  ({v / ref:.0%} del Elo)"
+        ax.text(v + ref * 0.012, i, texto, va="center", color=_TEXTO, fontsize=16,
+                fontweight="bold" if c == referencia else "normal")
+
+    ax.set_xlim(0, ref * 1.32)
+    ax.set_ylim(-0.6, len(imp) - 0.4)
+    ax.set_xlabel("Media de |SHAP| hacia el resultado predicho (escala logit)")
+    fig.suptitle("¿Qué variables mueven más la predicción?", x=0.01, y=0.975, ha="left",
+                 fontsize=24, fontweight="bold")
+    fig.text(0.01, 0.9, f"{n_partidos} partidos de validación 2023-24 · modelo final entrenado "
+             "solo con train · azul = Elo", color=_SUAVE, fontsize=15)
+    _estilo_barras_horizontales(ax)
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.86)
+    ruta = Path(ruta)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(ruta, facecolor="white")
+    return fig
+
+
+def fig_shap_ejemplo(shap_fila: pd.Series, valores: pd.Series, probs, titulo: str,
+                     resultado_real: str, ruta, top: int = 6):
+    """Explicación de un partido: contribución de cada variable hacia la clase predicha
+    (verde = la favorece, rojo = en contra). Las variables fuera del `top` se suman en una
+    barra "Otras". `shap_fila` y `valores` van indexados por nombre de columna;
+    `probs` en orden H, D, A."""
+    from src.config import CLASSES
+
+    probs = np.asarray(probs, dtype=float)
+    clase = CLASSES[int(probs.argmax())]
+    orden = shap_fila.abs().sort_values(ascending=False).index
+    principales, resto = list(orden[:top]), list(orden[top:])
+    etiquetas = [f"{_nombre_variable(c)} = {_formato_valor(valores[c])}" for c in principales]
+    contrib = [float(shap_fila[c]) for c in principales]
+    if resto:
+        etiquetas.append(f"Otras {len(resto)} variables")
+        contrib.append(float(shap_fila[resto].sum()))
+    etiquetas, contrib = etiquetas[::-1], np.array(contrib[::-1])   # la mayor arriba
+
+    plt.rcParams.update({"font.size": 18, "font.family": "DejaVu Sans"})
+    fig, ax = plt.subplots(figsize=(15, 8.5), dpi=150)
+    colores = [_A_FAVOR if v >= 0 else _EN_CONTRA for v in contrib]
+    ax.barh(range(len(contrib)), contrib, height=0.62, color=colores)
+    ax.axvline(0, color=_SUAVE, lw=1.5)
+    ax.set_yticks(range(len(contrib)), etiquetas)
+    lim = np.abs(contrib).max()
+    for i, v in enumerate(contrib):
+        ax.text(v + (1 if v >= 0 else -1) * lim * 0.015, i, f"{v:+.2f}".replace("-", "−"),
+                va="center", ha="left" if v >= 0 else "right", color=_TEXTO, fontsize=16)
+    ax.set_xlim(min(contrib.min(), 0) - lim * 0.18, max(contrib.max(), 0) + lim * 0.15)
+    ax.set_ylim(-0.6, len(contrib) - 0.4)
+    ax.set_xlabel(f"Empuje hacia «{NOMBRES_CLASES[clase]}» (valor SHAP, escala logit)")
+
+    pH, pD, pA = probs
+    fig.suptitle(titulo, x=0.01, y=0.975, ha="left", fontsize=24, fontweight="bold")
+    fig.text(0.01, 0.885, f"Modelo: local {pH:.0%} · empate {pD:.0%} · visitante {pA:.0%}   │   "
+             f"Resultado real: {resultado_real}", color=_TEXTO, fontsize=18)
+    fig.text(0.01, 0.835, "Verde = hace más probable el resultado predicho · Rojo = lo hace "
+             "menos probable", color=_SUAVE, fontsize=15)
+    _estilo_barras_horizontales(ax)
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.8)
+    ruta = Path(ruta)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(ruta, facecolor="white")
+    return fig
+
+
+def fig_shap_ejemplo_agrupado(grupos: list[dict], probs, titulo: str, resultado_real: str, ruta):
+    """Explicación de un partido para el público: SHAP sumado por grupo (Elo, forma, descanso)
+    hacia la clase predicha. `grupos` = salida de `ModeloFinal.factores_agrupados()`;
+    `probs` en orden H, D, A. Debajo del nombre de cada grupo van sus datos del partido."""
+    from matplotlib.transforms import blended_transform_factory
+
+    from src.config import CLASSES
+
+    probs = np.asarray(probs, dtype=float)
+    clase = CLASSES[int(probs.argmax())]
+    grupos = sorted(grupos, key=lambda g: abs(g["impacto"]))      # la mayor arriba
+    contrib = np.array([g["impacto"] for g in grupos])
+
+    plt.rcParams.update({"font.size": 18, "font.family": "DejaVu Sans"})
+    fig, ax = plt.subplots(figsize=(15, 8.5), dpi=150)
+    colores = [_A_FAVOR if v >= 0 else _EN_CONTRA for v in contrib]
+    ax.barh(range(len(contrib)), contrib, height=0.62, color=colores)
+    ax.axvline(0, color=_SUAVE, lw=1.5)
+    ax.set_yticks(range(len(contrib)), [""] * len(contrib))
+    # Nombre del grupo en negrita y, debajo, sus datos (una línea por equipo)
+    trans = blended_transform_factory(ax.transAxes, ax.transData)
+    for i, g in enumerate(grupos):
+        ax.text(-0.02, i + 0.12, g["grupo"], transform=trans, ha="right", va="bottom",
+                color=_TEXTO, fontsize=18, fontweight="bold")
+        ax.text(-0.02, i + 0.06, g["detalle"].replace(" · ", "\n"), transform=trans,
+                ha="right", va="top", color=_SUAVE, fontsize=14, linespacing=1.3)
+    lim = np.abs(contrib).max()
+    for i, v in enumerate(contrib):
+        ax.text(v + (1 if v >= 0 else -1) * lim * 0.015, i, f"{v:+.2f}".replace("-", "−"),
+                va="center", ha="left" if v >= 0 else "right", color=_TEXTO, fontsize=16)
+    ax.set_xlim(min(contrib.min(), 0) - lim * 0.18, max(contrib.max(), 0) + lim * 0.15)
+    ax.set_ylim(-0.6, len(contrib) - 0.4)
+    ax.set_xlabel(f"Empuje hacia «{NOMBRES_CLASES[clase]}» (suma de SHAP, escala logit)")
+
+    pH, pD, pA = probs
+    fig.suptitle(titulo, x=0.01, y=0.975, ha="left", fontsize=24, fontweight="bold")
+    fig.text(0.01, 0.885, f"Modelo: local {pH:.0%} · empate {pD:.0%} · visitante {pA:.0%}   │   "
+             f"Resultado real: {resultado_real}", color=_TEXTO, fontsize=18)
+    fig.text(0.01, 0.835, "Verde = hace más probable el resultado predicho · Rojo = lo hace "
+             "menos probable · cada barra suma las variables de su grupo", color=_SUAVE, fontsize=15)
+    _estilo_barras_horizontales(ax)
+    fig.subplots_adjust(left=0.43, right=0.97, top=0.8, bottom=0.12)
+    ruta = Path(ruta)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(ruta, facecolor="white")
+    return fig
