@@ -23,9 +23,12 @@ NOMBRES_CLASES = {"H": "Gana el local (H)", "D": "Empate (D)", "A": "Gana el vis
 
 
 def fig_comparacion_modelos(tabla: pd.DataFrame, ruta, final: str = "logistica_sin_redundancia",
-                            peores_signif: set[str] = frozenset()):
+                            peores_signif: set[str] = frozenset(), subtitulo: str | None = None,
+                            etiqueta_x: str | None = None):
     """Barras horizontales de log loss en validación (mejor arriba). Baseline y cuotas van como
-    líneas de referencia; `final` se resalta; `peores_signif` lleva un asterisco."""
+    líneas de referencia; `final` se resalta; `peores_signif` lleva un asterisco. `subtitulo`
+    (admite `{x0}`, donde empieza el eje) y `etiqueta_x` cambian los textos que dicen "validación"
+    cuando se grafica otro conjunto, p. ej. el test."""
     ref = tabla.set_index("modelo")["log_loss"]
     t = (tabla[~tabla["modelo"].isin(["baseline_frecuencias", "cuotas_mercado"])]
          .sort_values("log_loss", ascending=False))   # barh dibuja de abajo hacia arriba
@@ -53,11 +56,11 @@ def fig_comparacion_modelos(tabla: pd.DataFrame, ruta, final: str = "logistica_s
     x0 = 0.88
     ax.set_xlim(x0, ref["baseline_frecuencias"] + 0.012)
     ax.set_ylim(-0.6, len(t) + 0.55)
-    ax.set_xlabel("Log loss en validación 2023-24 (menor es mejor)")
+    ax.set_xlabel(etiqueta_x or "Log loss en validación 2023-24 (menor es mejor)")
     ax.set_title("¿Qué modelo da mejores probabilidades?", fontsize=24, loc="left", pad=46,
                  fontweight="bold")
-    ax.text(0, 1.015, f"380 partidos de la Premier 2023-24 · el eje empieza en {x0}",
-            transform=ax.transAxes, color=_SUAVE, fontsize=15)
+    subtitulo = subtitulo or "380 partidos de la Premier 2023-24 · el eje empieza en {x0}"
+    ax.text(0, 1.015, subtitulo.format(x0=x0), transform=ax.transAxes, color=_SUAVE, fontsize=15)
     if peores_signif:
         fig.text(0.01, 0.01, "* Peor que el modelo final con diferencia significativa "
                  "(bootstrap pareado, IC 95 %)", color=_SUAVE, fontsize=14)
