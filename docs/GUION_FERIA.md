@@ -8,10 +8,10 @@ modelo final, y se comprobaron ejecutando la app.
 
 ## 1. Pitch de 30 segundos
 
-> "¿Se puede predecir el fútbol? Entrenamos un modelo con 8 temporadas de la Premier League que,
+> "¿Se puede predecir el fútbol? Usamos 8 temporadas de la Premier League para crear un modelo que,
 > antes de cada partido, da la probabilidad de que gane el local, empate o gane el visitante. Lo
 > comparamos con las casas de apuestas, que son la referencia más difícil: en una temporada que el
-> modelo nunca había visto, llegó al 89 % del camino entre adivinar al azar y las casas, y la
+> modelo nunca había visto, llegó al 89 % del camino entre adivinar con las frecuencias históricas y las casas, y la
 > diferencia con ellas no es estadísticamente significativa. Y además explica por qué predice lo
 > que predice. ¿Quieres elegir un partido?"
 
