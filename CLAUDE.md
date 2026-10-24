@@ -49,6 +49,8 @@ Registro de decisiones tomadas. Fecha: 2026-10-18, antes de usar el conjunto de 
   significativamente distinto (bootstrap) y en validación cruzada salió algo mejor; se reportará
   junto al modelo final en el test del miércoles 21.
 - **Tras ver el test NO se cambia el modelo final.**
+- Test 2024-25 ejecutado el 2026-10-22, commit b8e27e4. Resultados congelados en
+  docs/resultados_test.csv. El modelo final no se modificó tras verlos.
 
 ## Resultados esperables
 Referencias en validación (2023-24, 380 partidos con cuotas): baseline de frecuencias ≈ 1.05,
